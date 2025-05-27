@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>ESP32 Relay Control via MQTT</title>
+  <style>
+    button {
+      width: 100px; height: 50px; margin: 10px; font-size: 16px;
+    }
+    .on { background-color: green; color: white; }
+    .off { background-color: red; color: white; }
+  </style>
+</head>
+<body>
+  <h2>ESP32 4 Relay Control</h2>
+  <div id="relays">
+    <div>
+      Relay 1: <button id="relay1" class="off">OFF</button>
+    </div>
+    <div>
+      Relay 2: <button id="relay2" class="off">OFF</button>
+    </div>
+    <div>
+      Relay 3: <button id="relay3" class="off">OFF</button>
+    </div>
+    <div>
+      Relay 4: <button id="relay4" class="off">OFF</button>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/paho-mqtt/mqttws31.min.js"></script>
+  <script>
+    const broker = "broker.hivemq.com";
+    const port = 8000;
+    const clientId = "webclient_" + Math.floor(Math.random() * 10000);
+
+    const client = new Paho.MQTT.Client(broker, port, clientId);
+
+    client.onConnectionLost = function(responseObject) {
+      console.log("Connection lost: " + responseObject.errorMessage);
+    };
+
+    client.onMessageArrived = function(message) {
+      const topic = message.destinationName;
+      const payload = message.payloadString;
+      const match = topic.match(/^home\/relay\/(\d+)\/status$/);
+      if (match) {
+        const relayNum = parseInt(match[1]);
+        const btn = document.getElementById("relay" + relayNum);
+        if (btn) {
+          if (payload === "ON") {
+            btn.textContent = "ON";
+            btn.className = "on";
+          } else {
+            btn.textContent = "OFF";
+            btn.className = "off";
+          }
+        }
+      }
+    };
+
+    function onConnect() {
+      console.log("Connected to MQTT broker");
+      client.subscribe("home/relay/+/status");
+      for (let i = 1; i <= 4; i++) {
+        const btn = document.getElementById("relay" + i);
+        btn.addEventListener("click", () => {
+          const currentState = btn.textContent;
+          const newState = currentState === "ON" ? "OFF" : "ON";
+          const topic = `home/relay/${i}/set`;
+          const message = new Paho.MQTT.Message(newState);
+          message.destinationName = topic;
+          client.send(message);
+        });
+      }
+    }
+
+    client.connect({onSuccess: onConnect});
+  </script>
+</body>
+</html>
